@@ -12,8 +12,8 @@
 #include <fstream>
 
 // --------------------------------------------------------------------
-const double root2 = std::sqrt(2.0);
-const double pi = 3.14159265358979323846;
+const double ROOT2 = std::sqrt(2.0);
+const double PI = 3.14159265358979323846;
 
 // --------------------------------------------------------------------
 void myPause() 
@@ -32,27 +32,53 @@ namespace randomGenerator
 	double myCDF_Gaussian(double x)
 	{
 		// Defines the CDF for the unit Normal distribution (mean = 0; variance = 1)
-		return 0.5 * (1 + std::erf(x / root2));
+		return 0.5 * (1 + std::erf(x / ROOT2));
 	}
 	double myCDF_Cauchy(double x)
 	{
 		// Defines the CDF for the Cauchy distribution (x0 = -2, gamma = 1)
-		return (std::atan(x + 2) / pi) + 0.5;
+		return (std::atan(x + 2) / PI) + 0.5;
 	}
 
-	class myRNG
+	class MyRNG
 	{
 	public:
-		myRNG(double (*cdf_func)(double), int type, double xMin, double xMax, double tolerance, int max_iterations)
+		MyRNG(std::function<double(double)> cdf_func, int type, double xMin, double xMax, double tolerance, int max_iterations)
 		{
 			CDF = cdf_func;
 			searchType = type;
-			x_min = xMin;
-			x_max = xMax;
+
+			if (xMin < xMax) // Check if the interval is orderered correctly
+			{
+				x_min = xMin;
+				x_max = xMax;
+			}
+			else
+			{
+				x_min = xMax;
+				x_max = xMin;
+			}
+			
 			y_min = cdf_func(xMin);
 			y_max = cdf_func(xMax);
-			tol = tolerance;
-			max_iters = max_iterations;
+
+			if (tolerance > 0) // Make sure the tolerance is positive and non-zero
+			{
+				tol = tolerance;
+			}
+			else 
+			{
+				tol = 1.0E-12;
+			}
+
+			if (max_iterations > 0) // Make sure the maximum iterations is poisitive and non-zero
+			{
+				max_iters = max_iterations;
+			}
+			else
+			{
+				max_iters = 100;
+			}
 
 			lookupTable = initializeCDFTable();
 
@@ -62,7 +88,7 @@ namespace randomGenerator
 			std::uniform_real_distribution<double> distribution(0, 1);
 
 		}
-		myRNG(double (*cdf_func)(double), double xMin, double xMax, double tolerance, int max_iterations)
+		MyRNG(std::function<double(double)> cdf_func, double xMin, double xMax, double tolerance, int max_iterations)
 		{
 			CDF = cdf_func;
 			searchType = 0;
@@ -82,7 +108,7 @@ namespace randomGenerator
 
 		}
 		// -------------------------------------------------------------------
-		void printCDFTable() 
+		const void printCDFTable() 
 		{
 			for (auto &i : lookupTable)
 			{
@@ -122,7 +148,7 @@ namespace randomGenerator
 
 		int searchType; // Type of minimization algorithm to use
 
-		double (*CDF)(double); // Specified CDF for the generator
+		std::function<double(double)> CDF; // Specified CDF for the generator
 		cdfTable lookupTable; // Holds values for CDF at various points
 		double x_min; // Left-boundary of domain of CDF
 		double x_max; // Right-boundary of domain of CDF
@@ -145,7 +171,7 @@ namespace randomGenerator
 
 			cdfTable table;
 
-			int logx_max = (int) std::log2(std::abs(x_max));
+			int logx_max = static_cast<int> (std::log2(std::abs(x_max)));
 			double x;
 
 			table.insert({ x_min, CDF(x_min) });
@@ -153,7 +179,7 @@ namespace randomGenerator
 
 			for (int i = -3; i < logx_max; i++)
 			{
-				x = std::pow(2, (double)i);
+				x = std::pow(2, static_cast<double>(i));
 				if (x < x_max) table.insert({ x, CDF(x) });
 				if (-x > x_min) table.insert({ -x, CDF(-x) });
 			}
@@ -171,7 +197,7 @@ namespace randomGenerator
 			x1 = 0;
 			x2 = 0;
 
-			for (auto &i : lookupTable)
+			for (const auto &i : lookupTable)
 			{
 				y1 = y2;
 				x1 = x2;
@@ -285,7 +311,7 @@ namespace randomGenerator
 
 			// Set initial intervals
 			double x1 = xy_init.first.first;
-			double x2= xy_init.first.second;
+			double x2 = xy_init.first.second;
 			double y1 = xy_init.second.first - y0;
 			double y2 = xy_init.second.second - y0;
 			
@@ -315,7 +341,7 @@ namespace randomGenerator
 
 			// Start ITP Method
 
-			int n_half = (int) std::ceil(std::log2((x2 - x1) / (2 * tol)));
+			int n_half = static_cast<int>( std::ceil(std::log2((x2 - x1) / (2 * tol))));
 			int n_max = n_half + n0;
 			for (int i = 0; i < n_max; i++)
 			{
@@ -436,7 +462,7 @@ int main()
 	myclock::time_point t5 = myclock::now();
 
 	// Initialize our Random Number Generator (Bisection search, Gaussian)
-	randomGenerator::myRNG rngGaussianBisection(randomGenerator::myCDF_Gaussian, 0, x_min, x_max, tolerance, max_iterations);
+	randomGenerator::MyRNG rngGaussianBisection(randomGenerator::myCDF_Gaussian, 0, x_min, x_max, tolerance, max_iterations);
 	myclock::time_point t6 = myclock::now();
 
 	// Test Generator (Bisection search, Gaussian)
@@ -454,7 +480,7 @@ int main()
 	myclock::time_point t7 = myclock::now();
 
 	// Initialize our Random Number Generator (Bisection search, Cauchy)
-	randomGenerator::myRNG rngCauchyBisection(randomGenerator::myCDF_Cauchy, 0, x_min, x_max, tolerance, max_iterations);
+	randomGenerator::MyRNG rngCauchyBisection(randomGenerator::myCDF_Cauchy, 0, x_min, x_max, tolerance, max_iterations);
 	myclock::time_point t8 = myclock::now();
 
 	// Test Generator (Bisection search, Cauchy)
@@ -472,7 +498,7 @@ int main()
 	myclock::time_point t9 = myclock::now();
 
 	// Initialize our Random Number Generator (ITP search, Gaussian)
-	randomGenerator::myRNG rngGaussianITP(randomGenerator::myCDF_Gaussian, 1, x_min, x_max, tolerance, max_iterations);
+	randomGenerator::MyRNG rngGaussianITP(randomGenerator::myCDF_Gaussian, 1, x_min, x_max, tolerance, max_iterations);
 	myclock::time_point t10 = myclock::now();
 
 	// Test Generator (ITP search, Gaussian)
@@ -490,7 +516,7 @@ int main()
 	myclock::time_point t11 = myclock::now();
 
 	// Initialize our Random Number Generator (ITP search, Cauchy)
-	randomGenerator::myRNG rngCauchyITP(randomGenerator::myCDF_Cauchy, 1, x_min, x_max, tolerance, max_iterations);
+	randomGenerator::MyRNG rngCauchyITP(randomGenerator::myCDF_Cauchy, 1, x_min, x_max, tolerance, max_iterations);
 	myclock::time_point t12 = myclock::now();
 
 	// Test Generator (ITP search, Cauchy)
